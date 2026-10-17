@@ -1,0 +1,3 @@
+aiohttp>=3.10,<4
+dnspython>=2.6,<3
+xlrd>=2.0.1,<3

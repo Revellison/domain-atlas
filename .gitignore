@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+node_modules/
+.domain_cache.sqlite3*
+.venv/
+.wrangler/
+.dev.vars
+.env
+outputs/
+build/
+domains_report.csv
+domains_report.details.json
+domain_dashboard.zip
+domains(3).csv

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Домены, IPv4, диапазоны и операторы сетей.">
+  <title>Домены</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <form class="toolbar" id="filters" role="search" aria-label="Поиск и фильтры доменов">
+      <label class="search-field">
+        <span class="sr-only">Поиск по домену, IP, диапазону, ASN или оператору</span>
+        <input id="search" type="search" placeholder="Домен, IP, ASN или оператор…" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="provider-control">
+        <button id="provider-toggle" class="filter-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="provider-popup">
+          <span id="provider-label">Все хостеры</span><span class="chevron" aria-hidden="true"></span>
+        </button>
+        <section id="provider-popup" class="provider-popup" role="dialog" aria-label="Выбор хостера" hidden>
+          <div class="popup-heading"><span>Хостер / оператор</span><button id="provider-close" type="button" class="icon-button" aria-label="Закрыть список хостеров">×</button></div>
+          <label class="sr-only" for="provider-search">Найти хостера по имени или ASN</label>
+          <input id="provider-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="provider-options" placeholder="Хостер или ASN…" autocomplete="off" spellcheck="false">
+          <div id="provider-options" class="host-list" role="listbox" aria-label="Хостеры"></div>
+          <div class="host-pagination"><span id="host-count" role="status" aria-live="polite"></span><div><button id="host-previous" type="button" class="icon-button" aria-label="Предыдущие хостеры">←</button><button id="host-next" type="button" class="icon-button" aria-label="Следующие хостеры">→</button></div></div>
+        </section>
+      </div>
+      <label class="sr-only" for="status">Тип доменов</label>
+      <select id="status">
+        <option value="all">Все домены</option>
+        <option value="resolved">С IP</option>
+        <option value="unresolved">Без IP</option>
+        <option value="multi">Несколько IP</option>
+        <option value="cdn">CDN</option>
+        <option value="subdomain">Поддомены</option>
+      </select>
+      <span id="result-count" class="result-count" role="status" aria-live="polite"></span>
+      <button id="reset" type="button" disabled>Сбросить</button>
+    </form>
+    <div class="table-scroll" tabindex="0" aria-label="Домены и сети">
+      <table class="domain-table" role="table">
+        <caption class="sr-only" id="table-description">Домены сгруппированы по оператору и ASN. Нажмите на строку или используйте Enter либо пробел, чтобы раскрыть все IP.</caption>
+        <thead role="rowgroup">
+          <tr role="row">
+            <th scope="col" role="columnheader">Домен</th>
+            <th scope="col" role="columnheader">IPv4</th>
+            <th scope="col" role="columnheader">Диапазон / BGP</th>
+            <th scope="col" role="columnheader">ASN / оператор</th>
+            <th scope="col" role="columnheader">Сайт оператора</th>
+          </tr>
+        </thead>
+        <tbody id="rows" role="rowgroup"><tr role="row"><td colspan="5" class="empty" role="status">Загружаем домены…</td></tr></tbody>
+      </table>
+    </div>
+    <nav id="pagination" class="pagination" aria-label="Страницы доменов" hidden>
+      <span id="page-summary" role="status" aria-live="polite"></span>
+      <div class="pagination-controls">
+        <label class="page-size">По <select id="page-size" aria-label="Доменов на странице"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
+        <div class="page-navigation"><button id="previous" type="button" class="icon-button" aria-label="Предыдущая страница" disabled>←</button><div id="page-numbers"></div><span id="page-count"></span><button id="next" type="button" class="icon-button" aria-label="Следующая страница" disabled>→</button></div>
+      </div>
+    </nav>
+  </main>
+</body>
+</html>
