@@ -1,0 +1,88 @@
+name: Weekly domain inventory
+
+on:
+  schedule:
+    - cron: '17 3 * * 1' # Monday 03:17 UTC / 09:17 Asia/Omsk
+  workflow_dispatch:
+
+concurrency:
+  group: domain-inventory
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  scan-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run regression tests
+        run: |
+          python -m unittest discover -v
+          node --test worker/test_worker.mjs
+      - name: Download the current Cheburcheck domain list
+        env:
+          MIN_DOMAIN_COUNT: ${{ vars.MIN_DOMAIN_COUNT || '100' }}
+        run: python fetch_domains.py --output build/input/domains.csv --min-domains "$MIN_DOMAIN_COUNT"
+      - name: Restore lookup cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .domain_cache.sqlite3
+          key: domain-lookups-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: domain-lookups-v1-
+      - name: Resolve all domains (IPv4 only)
+        env:
+          CERTSPOTTER_API_KEY: ${{ secrets.CERTSPOTTER_API_KEY }}
+          SUBDOMAIN_CENTER_API_KEY: ${{ secrets.SUBDOMAIN_CENTER_API_KEY }}
+          PDCP_API_KEY: ${{ secrets.PDCP_API_KEY }}
+          CHAOS_API_KEY: ${{ secrets.CHAOS_API_KEY }}
+          BUFFEROVER_API_KEY: ${{ secrets.BUFFEROVER_API_KEY }}
+          NETLAS_API_KEY: ${{ secrets.NETLAS_API_KEY }}
+          CENSYS_PAT: ${{ secrets.CENSYS_PAT }}
+          PEERINGDB_API_KEY: ${{ secrets.PEERINGDB_API_KEY }}
+        run: python -u domain_report.py build/input/domains.csv --output build/domains.csv --ipv4-only --ct-budget 3600
+      - name: Build and validate public JSON
+        env:
+          MIN_RESOLVED_RATIO: ${{ vars.MIN_RESOLVED_RATIO || '0.5' }}
+        run: >-
+          python build_payload.py build/domains.csv --details build/domains.details.json
+          --input-metadata build/input/domains.source.json
+          --output build/domains.json --min-resolved-ratio "$MIN_RESOLVED_RATIO"
+      - name: Save lookup cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .domain_cache.sqlite3
+          key: domain-lookups-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Publish complete snapshot as latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="domains-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf 'Weekly IPv4 inventory. Machine-readable asset: domains.json.\n\nRun: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > build/release-notes.md
+          gh release create "$tag" --target "$GITHUB_SHA" --draft --title "Domain inventory $(date -u +%F)" --notes-file build/release-notes.md
+          gh release upload "$tag" build/domains.json build/input/domains.csv build/input/domains.source.json
+          gh release edit "$tag" --draft=false --latest
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+
+  update-pages:
+    needs: scan-and-release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy-pages.yml

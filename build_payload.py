@@ -20,7 +20,7 @@ def website(value):
     return value if parsed.scheme in ('https', 'http') and parsed.hostname and not parsed.username else ''
 
 
-def make_payload(csv_path, details_path=None):
+def make_payload(csv_path, details_path=None, input_metadata=None):
     csv_path = Path(csv_path)
     details = json.loads(Path(details_path).read_text(encoding='utf-8')) if details_path else {}
     extra = {(r['domain'], r.get('ip', ''), r.get('prefix', ''), r.get('asn')): r
@@ -96,7 +96,7 @@ def make_payload(csv_path, details_path=None):
     if details and (details.get('domains') != len(result) or details.get('rows') != row_count):
         raise ValueError('CSV и details.json относятся к разным отчётам')
     resolved = sum(bool(d['addresses']) for d in result)
-    return {
+    payload = {
         'schema_version': 1,
         'generated_at': details.get('generated_at_utc') or datetime.fromtimestamp(csv_path.stat().st_mtime, timezone.utc).isoformat(),
         'summary': {
@@ -108,19 +108,26 @@ def make_payload(csv_path, details_path=None):
         },
         'warnings': details.get('service_errors', []), 'domains': result,
     }
+    if input_metadata:
+        metadata = json.loads(Path(input_metadata).read_text(encoding='utf-8'))
+        if metadata.get('domains') != len(result):
+            raise ValueError('Количество доменов не совпадает со скачанным списком')
+        payload['input_source'] = {key: metadata[key] for key in ['url', 'downloaded_at_utc', 'domains', 'bytes', 'sha256']}
+    return payload
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv', type=Path)
     parser.add_argument('--details', type=Path)
+    parser.add_argument('--input-metadata', type=Path)
     parser.add_argument('-o', '--output', type=Path, default=Path('site/data/domains.json'))
     parser.add_argument('--min-resolved-ratio', type=float, default=0)
     args = parser.parse_args()
     if not 0 <= args.min_resolved_ratio <= 1:
         parser.error('--min-resolved-ratio должен быть между 0 и 1')
     try:
-        payload = make_payload(args.csv, args.details)
+        payload = make_payload(args.csv, args.details, args.input_metadata)
         s = payload['summary']
         if not s['domains'] or s['resolved'] / s['domains'] < args.min_resolved_ratio:
             raise ValueError('Слишком мало доменов с IPv4; предыдущий релиз останется актуальным')

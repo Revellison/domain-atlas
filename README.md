@@ -5,6 +5,7 @@
 **Новое: еженедельный GitHub Actions, JSON в Releases и веб-таблица — см. [DASHBOARD.md](DASHBOARD.md).**
 Готовая страница находится в `site/`, текущий JSON — `site/data/domains.json`, workflow — `.github/workflows/weekly-domains.yml`.
 GitHub Pages публикуется через `.github/workflows/deploy-pages.yml`: данные берутся из последнего релиза и отдаются со страницей с одного домена.
+Перед каждым еженедельным сканированием свежий список скачивается с https://cheburcheck.ru/whitelist/domains.csv; ошибки скачивания останавливают публикацию.
 
 В `domains_report.csv` пять запрошенных столбцов и «Резолв через» — фактический хост, для которого получен IP.
 Открывается в Excel: UTF-8 с BOM, разделитель `;`.
