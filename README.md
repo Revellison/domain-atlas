@@ -18,6 +18,7 @@ GitHub Pages публикуется через `.github/workflows/deploy-pages.y
 
 ```powershell
 python -m pip install -r requirements.txt
+python fetch_domains.py --output build/input/domains.csv
 powershell -NoProfile -ExecutionPolicy Bypass -File .\run_report.ps1
 ```
 
@@ -30,7 +31,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_report.ps1 -InputFile 
 Самостоятельный Python-скрипт, без зависимости от Codex:
 
 ```powershell
-python -X utf8 .\domain_report.py "domains(3).csv" -o domains_report.csv
+python -X utf8 .\domain_report.py build/input/domains.csv -o domains_report.csv
 ```
 
 CSV/TXT/XLS/XLSX, домены в первом столбце. Другой столбец: `--column 2`, другой лист Excel: `--sheet 2`.
@@ -81,7 +82,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_report.ps1 -RetryUnres
 Либо Python без экспорта Excel:
 
 ```powershell
-python -X utf8 .\domain_report.py "domains(3).csv" --retry-unresolved
+python -X utf8 .\domain_report.py build/input/domains.csv --retry-unresolved
 ```
 
 Настройки: `--ct-providers subdomaincenter,certspotter,crtsh`, `--ct-candidates 20`, `--ct-sample 2`,

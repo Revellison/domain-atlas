@@ -1,5 +1,5 @@
 param(
-    [string]$InputFile = "domains(3).csv",
+    [string]$InputFile = "build/input/domains.csv",
     [string]$OutputFile = "domains_report.csv",
     [switch]$SkipExcel,
     [switch]$RetryUnresolved

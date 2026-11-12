@@ -2,7 +2,7 @@
 """Resolve domains, enrich IPs in batches, group by operator/ASN, export CSV.
 
 Python 3.10+; pip install -r requirements.txt
-python domain_report.py "domains(3).csv"
+python domain_report.py build/input/domains.csv
 No API keys required. CSV is UTF-8 BOM / semicolon for Russian Excel.
 """
 from __future__ import annotations

@@ -2,17 +2,21 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const config = window.DOMAIN_CONFIG || {};
-  const rows = document.getElementById('rows');
-  const description = document.getElementById('table-description');
+  const rows = $('rows');
+  const tableScroll = $('table-scroll');
   const nf = new Intl.NumberFormat('ru-RU');
-  const search = document.getElementById('search');
+  const search = $('search');
   const providerToggle = $('provider-toggle');
   const providerPopup = $('provider-popup');
   const providerSearch = $('provider-search');
   const hostList = $('provider-options');
-  const status = document.getElementById('status');
-  const reset = document.getElementById('reset');
-  const count = document.getElementById('result-count');
+  const status = $('status');
+  const reset = $('reset');
+  const count = $('result-count');
+  const pageSize = $('page-size');
+  const pageNumbers = $('page-numbers');
+  const previousPage = $('previous');
+  const nextPage = $('next');
   let domains = [];
   let loaded = false;
   let filtered = [];
@@ -34,16 +38,27 @@
     if (text !== undefined) node.textContent = text;
     return node;
   }
+  function icon(name) {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const use = document.createElementNS(namespace, 'use');
+    svg.setAttribute('class', 'icon');
+    svg.setAttribute('aria-hidden', 'true');
+    use.setAttribute('href', '#icon-' + name);
+    svg.append(use);
+    return svg;
+  }
   function siteLink(value) {
     let url;
     try { url = new URL(value); } catch { return el('span', 'muted', 'Не найден'); }
     if (!['https:', 'http:'].includes(url.protocol) || url.username) return el('span', 'muted', 'Не найден');
-    const link = el('a', 'website-link', url.hostname.replace(/^www\./, '') + ' ↗');
+    const link = el('a', 'website-link', url.hostname.replace(/^www\./, ''));
+    link.append(icon('external'));
     link.href = url.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
     return link;
   }
   function validate(payload) {
-    if (payload.schema_version !== 1 || !Array.isArray(payload.domains) ||
+    if (payload?.schema_version !== 1 || !Array.isArray(payload.domains) ||
         payload.summary?.domains !== payload.domains.length || !Number.isFinite(Date.parse(payload.generated_at))) {
       throw new Error('Неподдерживаемый формат снимка');
     }
@@ -78,7 +93,7 @@
     const cell = el('td'); cell.colSpan = 5;
     const box = el('div', 'detail-box');
     const heading = el('div', 'detail-heading');
-    heading.append(el('span', '', d.addresses.length ? `IPv4-адресов: ${d.addresses.length}` : 'Результат проверки'));
+    heading.textContent = d.addresses.length ? `IPv4-адресов: ${d.addresses.length}` : 'Результат проверки';
     box.append(heading);
     if (!d.addresses.length) box.append(el('div', 'detail-status', d.status || 'IPv4 не найден'));
     for (const a of d.addresses) {
@@ -104,21 +119,24 @@
   function makeRow(d, index) {
     const row = el('tr', 'domain-row');
     const id = 'details-' + index;
-    row.tabIndex = 0;
-    row.setAttribute('aria-expanded', 'false');
-    row.setAttribute('aria-describedby', 'table-description');
+    const disclosure = el('button', 'icon-button disclosure');
+    disclosure.type = 'button';
+    disclosure.setAttribute('aria-label', 'Подробности о домене ' + d.domain);
+    disclosure.setAttribute('aria-expanded', 'false');
+    disclosure.append(icon('right'));
     const cells = Array.from({length: 5}, () => el('td'));
-    ['Домен', 'IPv4', 'Диапазон / BGP', 'ASN / оператор', 'Сайт оператора'].forEach((label, i) => {
-      cells[i].dataset.label = label;
-    });
     const primary = d.addresses.find(a => a.networks.some(n => n.provider_id === d.group.id)) || d.addresses[0];
     const network = primary?.networks.find(n => n.provider_id === d.group.id) || primary?.networks[0];
-    cells[0].append(el('div', 'domain-name', d.domain));
+    const domainCell = el('div', 'domain-cell');
+    const domainInfo = el('div');
+    domainInfo.append(el('div', 'domain-name', d.domain));
     const meta = el('div', 'domain-meta');
     if (d.cdn) meta.append(el('span', 'tag cdn', 'CDN'));
     if (d.resolution === 'subdomain') meta.append(el('span', 'tag subdomain', 'через поддомен'));
     if (!d.addresses.length) meta.append(el('span', 'tag missing', 'IPv4 не найден'));
-    if (meta.childNodes.length) cells[0].append(meta);
+    if (meta.childNodes.length) domainInfo.append(meta);
+    domainCell.append(disclosure, domainInfo);
+    cells[0].append(domainCell);
     if (primary) {
       const ip = el('span', 'mono ip-value', primary.ip);
       if (d.addresses.length > 1) ip.append(el('span', 'ip-count', '+' + (d.addresses.length - 1)));
@@ -137,43 +155,41 @@
     let detail;
     let closeTimer;
     function toggle() {
-      const expanded = row.getAttribute('aria-expanded') !== 'true';
+      const expanded = disclosure.getAttribute('aria-expanded') !== 'true';
       clearTimeout(closeTimer);
-      row.setAttribute('aria-expanded', String(expanded));
+      disclosure.setAttribute('aria-expanded', String(expanded));
       row.classList.toggle('is-expanded', expanded);
       if (expanded) {
         if (!detail) { detail = makeDetail(d, id); row.after(detail); }
-        row.setAttribute('aria-controls', id);
+        disclosure.setAttribute('aria-controls', id);
         detail.removeAttribute('aria-hidden'); detail.inert = false;
         const panel = detail;
         frame(() => frame(() => {
-          if (row.isConnected && detail === panel && row.getAttribute('aria-expanded') === 'true') panel.classList.add('is-open');
+          if (row.isConnected && detail === panel && disclosure.getAttribute('aria-expanded') === 'true') panel.classList.add('is-open');
         }));
       } else if (detail) {
         const panel = detail;
         panel.classList.remove('is-open'); panel.setAttribute('aria-hidden', 'true'); panel.inert = true;
         closeTimer = setTimeout(() => {
-          if (detail === panel && row.getAttribute('aria-expanded') === 'false') {
-            panel.remove(); detail = null; row.removeAttribute('aria-controls');
+          if (detail === panel && disclosure.getAttribute('aria-expanded') === 'false') {
+            panel.remove(); detail = null; disclosure.removeAttribute('aria-controls');
           }
         }, reducedMotion() ? 0 : 190);
       }
     }
+    disclosure.addEventListener('click', toggle);
     row.addEventListener('click', event => {
-      if (event.target.closest('a')) return;
+      if (event.target.closest('a, button')) return;
       // Copying a selected IP/domain should not collapse its details.
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed && row.contains(selection.anchorNode)) return;
       toggle();
     });
-    row.addEventListener('keydown', event => {
-      if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle(); }
-    });
     return row;
   }
   function renderPage() {
     if (!loaded) return;
-    const size = +$('page-size').value;
+    const size = Number(pageSize.value);
     const totalPages = Math.max(1, Math.ceil(filtered.length / size));
     page = Math.max(1, Math.min(page, totalPages));
     const start = (page - 1) * size;
@@ -184,7 +200,7 @@
       if (lastGroup !== d.group.id) {
         lastGroup = d.group.id;
         const row = el('tr', 'group-row'); const cell = el('td', '', d.group.name); cell.colSpan = 5;
-        cell.append(el('span', '', d.group.asns.map(asn => 'AS' + asn).join(' · ')));
+        if (d.group.asns.length) cell.append(el('span', '', d.group.asns.map(asn => 'AS' + asn).join(' · ')));
         row.append(cell); fragment.append(row);
       }
       fragment.append(makeRow(d, start + index));
@@ -194,36 +210,51 @@
       cell.colSpan = 5; row.append(cell); fragment.append(row);
     }
     rows.replaceChildren(fragment);
-    $('pagination').hidden = false;
-    $('page-summary').textContent = filtered.length ? `${nf.format(start + 1)}–${nf.format(Math.min(start + size, filtered.length))} из ${nf.format(filtered.length)}` : 'Нет результатов';
+    $('pagination').hidden = !filtered.length;
+    $('page-navigation').hidden = totalPages === 1;
+    $('page-summary').textContent = filtered.length ? `${nf.format(start + 1)}–${nf.format(Math.min(start + size, filtered.length))} из ${nf.format(filtered.length)}` : '';
     $('page-count').textContent = `${page} / ${totalPages}`;
-    $('previous').disabled = page <= 1;
-    $('next').disabled = page >= totalPages;
+    previousPage.disabled = page <= 1;
+    nextPage.disabled = page >= totalPages;
     renderPageNumbers(totalPages);
-    document.querySelector('.table-scroll').scrollTop = 0;
+    tableScroll.scrollTop = 0;
   }
   function renderPageNumbers(total) {
-    const numbers = new Set([1, total, page]);
-    for (let n = Math.max(1, page - 1); n <= Math.min(total, page + 1); n++) numbers.add(n);
-    if (page <= 2) for (let n = 1; n <= Math.min(3, total); n++) numbers.add(n);
-    if (page >= total - 1) for (let n = Math.max(1, total - 2); n <= total; n++) numbers.add(n);
+    let numbers;
+    if (total <= 7) numbers = Array.from({length: total}, (_, i) => i + 1);
+    else if (page <= 4) numbers = [1, 2, 3, 4, 5, null, total];
+    else if (page >= total - 3) numbers = [1, null, total - 4, total - 3, total - 2, total - 1, total];
+    else numbers = [1, null, page - 1, page, page + 1, null, total];
     const fragment = document.createDocumentFragment();
-    let previous = 0;
-    for (const n of [...numbers].sort((a, b) => a - b)) {
-      if (previous && n - previous > 1) fragment.append(el('span', 'page-gap', '…'));
-      const button = el('button', 'page-button', String(n)); button.type = 'button';
-      button.setAttribute('aria-label', `Страница ${n}`);
-      if (n === page) button.setAttribute('aria-current', 'page');
-      button.addEventListener('click', () => goToPage(n)); fragment.append(button); previous = n;
+    for (const number of numbers) {
+      if (number === null) {
+        const gap = el('span', 'page-gap', '…');
+        gap.setAttribute('aria-hidden', 'true');
+        fragment.append(gap);
+        continue;
+      }
+      const button = el('button', 'page-button', String(number)); button.type = 'button';
+      button.setAttribute('aria-label', `Страница ${number}`);
+      if (number === page) button.setAttribute('aria-current', 'page');
+      button.addEventListener('click', event => goToPage(number, event));
+      fragment.append(button);
     }
-    $('page-numbers').replaceChildren(fragment);
+    pageNumbers.replaceChildren(fragment);
   }
-  function goToPage(nextPage) {
-    page = nextPage; renderPage();
-    if (window.matchMedia?.('(max-width: 1140px)')?.matches) {
-      document.querySelector('.table-scroll').scrollIntoView?.({block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth'});
+  function goToPage(number, event) {
+    if (number === page) return;
+    const control = event.currentTarget;
+    const compact = window.matchMedia('(max-width: 1140px)').matches;
+    page = number;
+    renderPage();
+    if (compact) {
+      tableScroll.scrollIntoView({block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth'});
     }
-    rows.querySelector('.domain-row')?.focus({preventScroll: true});
+    if (event.detail === 0) {
+      const target = compact ? rows.querySelector('.disclosure') :
+        control.isConnected && !control.disabled ? control : pageNumbers.querySelector('[aria-current=page]');
+      target?.focus({preventScroll: true});
+    }
   }
   function populateProviders() {
     const options = new Map();
@@ -240,9 +271,12 @@
     if (!providerPopup.hidden) filterHosts();
   }
   function syncPopupSize() {
+    if (providerPopup.hidden) return;
     const viewport = window.visualViewport;
     providerPopup.style.setProperty('--viewport-height', `${viewport?.height || window.innerHeight}px`);
     providerPopup.style.setProperty('--popup-top', `${(viewport?.offsetTop || 0) + 8}px`);
+    const offset = providerToggle.getBoundingClientRect().bottom - (viewport?.offsetTop || 0) + 6;
+    providerPopup.style.setProperty('--popup-offset', `${offset}px`);
   }
   function openProviders() {
     providerPopup.hidden = false;
@@ -276,7 +310,7 @@
     });
     if (!hostResults.length) fragment.append(el('p', 'host-empty', 'Хостер не найден'));
     hostList.replaceChildren(fragment); hostList.scrollTop = 0;
-    $('host-count').textContent = hostResults.length ? `${start + 1}–${Math.min(start + HOST_PAGE_SIZE, hostResults.length)} из ${hostResults.length}` : 'Нет результатов';
+    $('host-count').textContent = hostResults.length ? `${nf.format(start + 1)}–${nf.format(Math.min(start + HOST_PAGE_SIZE, hostResults.length))} из ${nf.format(hostResults.length)}` : 'Нет результатов';
     $('host-previous').disabled = hostPage === 0;
     $('host-next').disabled = start + HOST_PAGE_SIZE >= hostResults.length;
   }
@@ -284,7 +318,7 @@
     providerID = p.id;
     $('provider-label').textContent = p.name; providerToggle.title = p.name;
     providerToggle.classList.toggle('is-filtered', Boolean(p.id));
-    closeProviders(true); clearTimeout(searchTimer); applyFilters();
+    closeProviders(true); applyFilters();
   }
   function applyFilters() {
     if (!loaded) return;
@@ -295,34 +329,43 @@
         status.value === 'unresolved' && !d.addresses.length || status.value === 'multi' && d.addresses.length > 1 ||
         status.value === 'cdn' && d.cdn || status.value === 'subdomain' && d.resolution === 'subdomain'));
     page = 1; renderPage();
-    count.textContent = `${nf.format(filtered.length)} из ${nf.format(domains.length)}`;
+    count.textContent = `Домены: ${nf.format(filtered.length)} из ${nf.format(domains.length)}`;
     reset.disabled = !tokens.length && !providerID && status.value === 'all';
   }
   async function load() {
     try {
       let result;
-      let demo = new URLSearchParams(location.search).get('demo') === '1';
       const automatic = !config.dataUrl || config.dataUrl === 'auto';
-      if (demo) result = await getJSON(config.demoUrl || './data/domains.json');
+      const demoUrl = config.demoUrl || './data/domains.json';
+      const wantsDemo = new URLSearchParams(location.search).get('demo') === '1';
+      let demo = wantsDemo && (automatic || new URL(demoUrl, location.href).href !== new URL(config.dataUrl, location.href).href);
+      if (demo) result = await getJSON(demoUrl);
       else {
         try { result = await getJSON(automatic ? './api/domains' : config.dataUrl); }
         catch (error) {
           // Only a missing local route permits the explicitly labelled snapshot.
           if (!automatic || error.status !== 404) throw error;
-          demo = true; result = await getJSON(config.demoUrl || './data/domains.json');
+          demo = true; result = await getJSON(demoUrl);
         }
       }
       demo ||= result.response.headers.get('X-Data-Source') === 'snapshot';
       validate(result.payload);
-      const date = new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(result.payload.generated_at));
-      const source = demo ? 'Локальный снимок' : 'GitHub Release' + (config.releaseTag ? ' · ' + config.releaseTag : '');
+      const timestamp = result.payload.generated_at;
+      const date = new Intl.DateTimeFormat('ru-RU', {dateStyle: 'medium', timeStyle: 'short'}).format(new Date(timestamp));
+      const source = demo ? 'Локальный снимок' : 'GitHub Release';
       document.title = `Домены · ${source} · ${date}`;
+      $('snapshot-source').textContent = source;
+      if (!demo && config.releaseTag) $('snapshot-source').title = config.releaseTag;
+      $('snapshot-date').dateTime = timestamp;
+      $('snapshot-date').textContent = date;
+      $('snapshot').hidden = false;
       const warnings = (result.payload.warnings || []).map(w => String(w).replace(/,?\s*подробности в details\.json/gi, '')).join(' · ');
-      description.textContent = `${source}, ${date}. Доменов: ${nf.format(result.payload.domains.length)}. ` +
-        'Группировка по оператору и ASN. Нажмите на строку или используйте Enter либо пробел, чтобы раскрыть все IP.' + (warnings ? ' ' + warnings : '');
+      $('snapshot-warning').textContent = warnings;
+      $('snapshot-notice').hidden = !warnings;
       domains = result.payload.domains;
       loaded = true;
       populateProviders();
+      providerToggle.disabled = false;
       applyFilters();
     } catch (error) {
       const row = el('tr');
@@ -330,29 +373,40 @@
       cell.colSpan = 5; cell.setAttribute('role', 'alert'); row.append(cell); rows.replaceChildren(row);
     }
   }
-  let searchTimer;
-  search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(applyFilters, 160); });
-  status.addEventListener('change', () => {
-    clearTimeout(searchTimer); applyFilters();
-  });
-  document.getElementById('filters').addEventListener('submit', event => {
-    event.preventDefault(); clearTimeout(searchTimer); applyFilters();
+  search.addEventListener('input', applyFilters);
+  status.addEventListener('change', applyFilters);
+  $('filters').addEventListener('submit', event => {
+    event.preventDefault(); applyFilters();
   });
   reset.addEventListener('click', () => {
-    clearTimeout(searchTimer); search.value = ''; providerID = ''; status.value = 'all';
+    search.value = ''; providerID = ''; status.value = 'all';
     $('provider-label').textContent = 'Все хостеры'; providerToggle.title = '';
-    providerToggle.classList.remove('is-filtered'); closeProviders(); applyFilters();
+    providerToggle.classList.remove('is-filtered'); closeProviders(); search.focus(); applyFilters();
   });
-  $('previous').addEventListener('click', () => goToPage(page - 1));
-  $('next').addEventListener('click', () => goToPage(page + 1));
-  $('page-size').addEventListener('change', () => { page = 1; renderPage(); });
+  previousPage.addEventListener('click', event => goToPage(page - 1, event));
+  nextPage.addEventListener('click', event => goToPage(page + 1, event));
+  pageSize.addEventListener('change', () => {
+    page = 1;
+    renderPage();
+    if (window.matchMedia('(max-width: 1140px)').matches) tableScroll.scrollIntoView({block: 'start'});
+  });
   providerToggle.addEventListener('click', () => providerPopup.hidden ? openProviders() : closeProviders(true));
   $('provider-close').addEventListener('click', () => closeProviders(true));
   providerSearch.addEventListener('input', filterHosts);
-  $('host-previous').addEventListener('click', () => { hostPage--; renderHosts(); });
-  $('host-next').addEventListener('click', () => { hostPage++; renderHosts(); });
+  const hostPrevious = $('host-previous');
+  const hostNext = $('host-next');
+  for (const [button, direction] of [[hostPrevious, -1], [hostNext, 1]]) {
+    button.addEventListener('click', event => {
+      hostPage += direction;
+      renderHosts();
+      if (event.detail === 0 && button.disabled) (direction < 0 ? hostNext : hostPrevious).focus();
+    });
+  }
   providerPopup.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeProviders(true); }
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation(); closeProviders(true);
+      return;
+    }
     if (event.target !== providerSearch) return;
     const options = [...hostList.querySelectorAll('[role=option]')];
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -372,13 +426,15 @@
     if (!providerPopup.hidden && !providerPopup.contains(event.target) && !providerToggle.contains(event.target)) closeProviders();
   });
   window.visualViewport?.addEventListener('resize', syncPopupSize);
+  window.visualViewport?.addEventListener('scroll', syncPopupSize);
   window.addEventListener('resize', syncPopupSize);
   document.addEventListener('keydown', event => {
-    if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey &&
+        !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
       event.preventDefault(); search.focus();
     }
     if (event.key === 'Escape' && document.activeElement === search) {
-      clearTimeout(searchTimer); search.value = ''; applyFilters();
+      search.value = ''; applyFilters();
     }
   });
   load();

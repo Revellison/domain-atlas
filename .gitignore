@@ -10,5 +10,4 @@ outputs/
 build/
 domains_report.csv
 domains_report.details.json
-domain_dashboard.zip
-domains(3).csv
+domains_report.xlsx
