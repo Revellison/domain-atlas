@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import domain_report as d
-import subdomain_providers as sources
-from test_ct_fallback import args
+from scanner import subdomain_providers as sources
+from tests.test_ct_fallback import args
 
 
 class AdapterTests(unittest.TestCase):

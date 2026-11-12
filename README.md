@@ -14,7 +14,6 @@ GitHub Pages публикуется через `.github/workflows/deploy-pages.y
 ## Запуск
 
 Требуется Python 3.10 или новее. В PowerShell, в этой папке:
-`domain_report.py` и модуль `subdomain_providers.py` должны лежать рядом.
 
 ```powershell
 python -m pip install -r requirements.txt
@@ -147,4 +146,4 @@ DNS зависит от места и времени запроса, геогр�
 - https://docs.censys.com/docs/platform-api-transition-guide
 - https://sslmate.com/help/reference/ct_search_api_v1
 
-Проверки: `python -m unittest -v test_domain_report.py test_ct_fallback.py test_subdomain_providers.py`.
+Тесты Python находятся в `tests/`. Запускайте их из корня проекта командой `python -m unittest discover -v`.

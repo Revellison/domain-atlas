@@ -34,7 +34,7 @@ import dns.resolver
 import dns.rdata
 import dns.rdataclass
 import dns.rdatatype
-from subdomain_providers import ExternalAPIClient, ENDPOINTS as EXTRA_ENDPOINTS
+from scanner.subdomain_providers import ExternalAPIClient, ENDPOINTS as EXTRA_ENDPOINTS
 
 LOG = logging.getLogger("domains")
 HEADERS = ["Домен", "IP-адрес", "Диапазон (BGP-префикс)", "ASN / оператор сети", "Сайт оператора", "Резолв через"]
